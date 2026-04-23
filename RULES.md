@@ -53,6 +53,7 @@ This repository is a homepage-first Next.js App Router starter.
 - Do not patch primitives for one-off page-only styles.
 - Prefer styling at feature component level first.
 - Change primitive internals only when global behavior change is intended.
+- When generating new primitives, use `pnpm run shadcn:add <component>` so output stays aligned with `components.json`.
 
 ## 6) Script Contracts
 
@@ -89,6 +90,11 @@ Allowed configuration touchpoints:
 - `postcss.config.mjs`
 - `components.json`
 - Deployment/runtime files (`Dockerfile`, `railway.json`, `railpack.json`)
+
+Package script contract:
+
+- Keep `shadcn`, `shadcn:init`, and `shadcn:add` scripts in `package.json` available for component scaffolding.
+- If `components.json` aliases/style options change, verify shadcn scripts still resolve correct output paths.
 
 ## 9) Critical Safety Notes
 

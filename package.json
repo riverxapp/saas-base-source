@@ -8,7 +8,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "shadcn": "pnpm dlx shadcn@latest",
+    "shadcn:init": "pnpm dlx shadcn@latest init -y",
+    "shadcn:add": "pnpm dlx shadcn@latest add"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

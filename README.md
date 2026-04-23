@@ -46,7 +46,7 @@ Treat these as placeholders for future PostgreSQL onboarding, not active runtime
 - Language: TypeScript (strict mode)
 - Runtime: Node.js (ESM package mode)
 - Package manager: pnpm (`pnpm@10.26.2`)
-- UI: React 19 + Tailwind CSS + Radix primitives
+- UI: React 19 + Tailwind CSS + Radix primitives + shadcn CLI/component workflow
 - Theme: `next-themes`
 - Build tooling: PostCSS + Tailwind + Next.js compiler
 - Container runtime: Docker (`node:22-slim`)
@@ -79,6 +79,19 @@ pnpm run lint
 ```
 
 Note: first-time lint may prompt for ESLint setup if no ESLint config is committed.
+
+## 5) Manage shadcn components
+
+```bash
+# One-time setup (safe to rerun)
+pnpm run shadcn:init
+
+# Add a new component primitive
+pnpm run shadcn:add button
+
+# Full CLI access for advanced options
+pnpm run shadcn -- --help
+```
 
 ## Directory Guide
 
@@ -145,6 +158,12 @@ When adding a new home section:
 - Do not mix server-only logic into client components.
 
 ## Scripts Contract
+
+## package scripts for shadcn
+
+- `pnpm run shadcn`: runs the shadcn CLI through pnpm dlx.
+- `pnpm run shadcn:init`: runs non-interactive shadcn initialization (`init -y`) against `components.json`.
+- `pnpm run shadcn:add <component>`: scaffolds shadcn UI primitives into `components/ui`.
 
 ## `scripts/dev-supervisor.js`
 

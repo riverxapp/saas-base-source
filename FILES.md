@@ -109,7 +109,7 @@ They are for future DB onboarding and are not required for current homepage runt
 
 | File | Purpose |
 |---|---|
-| `package.json` | scripts, dependencies, package manager pin, ESM mode |
+| `package.json` | scripts, dependencies, package manager pin, ESM mode, shadcn CLI helpers |
 | `pnpm-lock.yaml` | primary lockfile |
 | `next.config.mjs` | Next.js config |
 | `tsconfig.json` | TypeScript compiler config |
@@ -226,3 +226,4 @@ Complete tracked source/config index (excluding `.git`, `node_modules`, `.next`)
 - Do not assume dashboard/auth/backend modules are present.
 - Do not modify sensitive config files blindly (`postcss.config.mjs`) without review.
 - Do not introduce broad refactors for small homepage tasks.
+- Do not bypass package scripts for UI scaffolding; use `pnpm run shadcn:init` and `pnpm run shadcn:add <component>` to keep generator behavior consistent.
