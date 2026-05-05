@@ -23,11 +23,8 @@ if (!scripts.dev) fail("package.json missing scripts.dev");
 if (!scripts.start) fail("package.json missing scripts.start");
 if (!scripts["verify:dev-runtime"]) fail("package.json missing scripts.verify:dev-runtime");
 
-if (!scripts.dev.includes("--hostname 0.0.0.0")) {
-  fail("scripts.dev must include '--hostname 0.0.0.0'");
-}
-if (!scripts.dev.includes("--port ${PORT:-3000}")) {
-  fail("scripts.dev must include explicit '--port ${PORT:-3000}'");
+if (!scripts.dev.includes("scripts/dev-supervisor.js")) {
+  fail("scripts.dev must run scripts/dev-supervisor.js for runtime parity");
 }
 if (!scripts.start.includes("--hostname 0.0.0.0")) {
   fail("scripts.start must include '--hostname 0.0.0.0'");
@@ -38,8 +35,8 @@ if (!scripts.start.includes("--port ${PORT:-3000}")) {
 
 const supervisor = readText("scripts/dev-supervisor.js");
 
-if (!supervisor.includes('const PORT = resolvePort(process.env.PORT);')) {
-  fail("Supervisor must resolve PORT from env and fallback to default");
+if (!supervisor.includes('const PORT = resolvePort(cli.port || process.env.PORT);')) {
+  fail("Supervisor must resolve PORT from CLI/env and fallback to default");
 }
 if (!supervisor.includes('return "3000";')) {
   fail("Supervisor must default PORT to 3000");
@@ -61,6 +58,12 @@ if (!supervisor.includes('const GIT_POLL = parseBoolean(process.env.GIT_POLL, tr
 }
 if (!supervisor.includes('const GIT_BOOTSTRAP = parseBoolean(process.env.GIT_BOOTSTRAP, false);')) {
   fail("Supervisor must support GIT_BOOTSTRAP env override");
+}
+if (!supervisor.includes('token === "--host" || token === "--hostname"')) {
+  fail("Supervisor must support forwarded --host/--hostname args");
+}
+if (!supervisor.includes('token === "--port" || token === "-p"')) {
+  fail("Supervisor must support forwarded --port/-p args");
 }
 
 console.log("[verify:dev-runtime] PASS: runtime invariants satisfied");

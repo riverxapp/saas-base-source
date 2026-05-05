@@ -67,7 +67,7 @@ Structural and architectural index for the current repository state.
 | UI primitives | `components/ui/` | Reusable primitives (button/badge/sheet/separator) | Shared |
 | Utility layer | `lib/` | Utility helpers (`cn`) | Shared |
 | Runtime tooling | `scripts/` | Supervisor, polling, command runner, setup scripts | Infrastructure |
-| Deployment config | root + `.github/workflows/` | Docker/Railway/workflow behavior | Infrastructure |
+| Deployment config | root + `.github/workflows/` | Docker/workflow behavior | Infrastructure |
 
 ## 4) Controllers, Services, Data Layer (Current State)
 
@@ -117,8 +117,6 @@ They are for future DB onboarding and are not required for current homepage runt
 | `postcss.config.mjs` | PostCSS config |
 | `components.json` | shadcn generator config |
 | `Dockerfile` | container build/runtime |
-| `railway.json` | Railway start command |
-| `railpack.json` | Railpack cache/install behavior |
 
 ## Environment
 
@@ -185,8 +183,6 @@ Complete tracked source/config index (excluding `.git`, `node_modules`, `.next`)
 ├── package.json                           # Scripts/deps/package manager pin/type module
 ├── pnpm-lock.yaml                         # Primary lockfile
 ├── postcss.config.mjs                     # PostCSS configuration (sensitive file)
-├── railpack.json                          # Railpack install/cache config
-├── railway.json                           # Railway runtime start command
 ├── scripts/
 │   ├── commandRunner.js                   # Serialized command execution helper
 │   ├── db-init.js                         # Future DB migration bootstrap helper
@@ -217,7 +213,6 @@ Complete tracked source/config index (excluding `.git`, `node_modules`, `.next`)
 
 1. Supervisor behavior: `scripts/dev-supervisor.js`
 2. Container behavior: `Dockerfile`
-3. Platform start command: `railway.json`
 4. Workflow placeholders: `.github/workflows/init-db.yml`
 
 ## Avoid these pitfalls

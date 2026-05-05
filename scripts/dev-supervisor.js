@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 const BRANCH = process.env.PREVIEW_BRANCH || "main";
 const REPO_URL = process.env.REPO_URL;
-const HOST = process.env.HOST || "0.0.0.0";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 function resolvePort(value) {
@@ -21,7 +20,25 @@ function parseBoolean(value, defaultValue) {
   return !["false", "0", "no", "off"].includes(String(value).toLowerCase());
 }
 
-const PORT = resolvePort(process.env.PORT);
+function parseCliArgs(argv) {
+  const parsed = {};
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if ((token === "--host" || token === "--hostname") && argv[i + 1]) {
+      parsed.host = argv[++i];
+      continue;
+    }
+    if ((token === "--port" || token === "-p") && argv[i + 1]) {
+      parsed.port = argv[++i];
+      continue;
+    }
+  }
+  return parsed;
+}
+
+const cli = parseCliArgs(process.argv.slice(2));
+const HOST = cli.host || process.env.HOST || "0.0.0.0";
+const PORT = resolvePort(cli.port || process.env.PORT);
 const NEXT_DEV = parseBoolean(process.env.NEXT_DEV, true);
 const GIT_BOOTSTRAP = parseBoolean(process.env.GIT_BOOTSTRAP, false);
 const GIT_POLL = parseBoolean(process.env.GIT_POLL, true);
@@ -133,20 +150,29 @@ async function warmup() {
 
 function startNext() {
   const nextCommand = getNextCommand();
-  const baseArgs = [...nextCommand.args, "--hostname", HOST, "--port", PORT];
 
   if (NEXT_DEV) {
     console.log(`[supervisor] starting Next dev server on ${HOST}:${PORT}`);
-    run("next-dev", nextCommand.cmd, ["dev", ...baseArgs], {
-      NODE_ENV: "development",
-    });
+    run(
+      "next-dev",
+      nextCommand.cmd,
+      [...nextCommand.args, "dev", "--hostname", HOST, "--port", PORT],
+      {
+        NODE_ENV: "development",
+      }
+    );
     return;
   }
 
   console.log(`[supervisor] starting Next production server on ${HOST}:${PORT}`);
-  run("next-start", nextCommand.cmd, ["start", ...baseArgs], {
-    NODE_ENV: "production",
-  });
+  run(
+    "next-start",
+    nextCommand.cmd,
+    [...nextCommand.args, "start", "--hostname", HOST, "--port", PORT],
+    {
+      NODE_ENV: "production",
+    }
+  );
 }
 
 function startGitPoller() {

@@ -296,7 +296,7 @@ Technology Stack (from README.md)
 * Data Layer (current): no active DB/ORM wired in app runtime; `scripts/db-init.js` and `DATABASE_URL` are reserved for future DB onboarding
 * Validation: TypeScript type contracts; no global runtime validation layer configured
 * Linting/Tooling: Next.js tooling, PostCSS, and pnpm package management
-* Runtime targets: Docker runtime (`scripts/dev-supervisor.js`), Railway config files present, Vercel-compatible Next.js app
+* Runtime targets: Docker runtime (`scripts/dev-supervisor.js`), Vercel-compatible Next.js app
 
 Change Boundaries (from RULES.md)
 
@@ -314,7 +314,7 @@ Change Boundaries (from RULES.md)
   * Do not add auth middleware contracts by assumption.
 * Infrastructure and deployment:
   * Treat `scripts/*` as infrastructure contracts; keep script edits intentional and minimal.
-  * Active deployment-related files include `Dockerfile`, `railpack.json`, and `railway.json`; app remains Vercel-compatible.
+  * Active deployment-related files include `Dockerfile`; app remains Vercel-compatible.
 * Server/client component rules:
   * Keep env vars, DB access, API calls, and server actions on the server.
   * Use Server Components by default and add `"use client"` only for interactivity/browser APIs.
