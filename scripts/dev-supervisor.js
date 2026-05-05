@@ -5,36 +5,30 @@ import { fileURLToPath } from "node:url";
 
 const BRANCH = process.env.PREVIEW_BRANCH || "main";
 const REPO_URL = process.env.REPO_URL;
-const nextDevRaw = process.env.NEXT_DEV;
-const gitBootstrapRaw = process.env.GIT_BOOTSTRAP;
-const gitPollRaw = process.env.GIT_POLL;
-const healthPathRaw = process.env.HEALTHCHECK_PATH;
+const HOST = process.env.HOST || "0.0.0.0";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 function resolvePort(value) {
   const raw = String(value ?? "").trim();
-  const normalized = raw.replace(/^['"]|['"]$/g, "");
+  const normalized = raw.replace(/^['\"]|['\"]$/g, "");
   const port = Number.parseInt(normalized, 10);
-  if (!Number.isFinite(port) || port < 0) return "3000";
+  if (!Number.isFinite(port) || port <= 0) return "3000";
   return String(port);
 }
-
-const PORT = resolvePort(process.env.PORT);
 
 function parseBoolean(value, defaultValue) {
   if (value === undefined) return defaultValue;
   return !["false", "0", "no", "off"].includes(String(value).toLowerCase());
 }
 
-const NEXT_DEV = parseBoolean(nextDevRaw, true);
-// Railway/runtime images often start without .git; when REPO_URL is provided,
-// bootstrap by default so polling has a repo to work with.
-const GIT_BOOTSTRAP = parseBoolean(gitBootstrapRaw, Boolean(REPO_URL));
-// Default on so repo-sync behavior is active unless explicitly disabled.
-const GIT_POLL = parseBoolean(gitPollRaw, true);
+const PORT = resolvePort(process.env.PORT);
+const NEXT_DEV = parseBoolean(process.env.NEXT_DEV, true);
+const GIT_BOOTSTRAP = parseBoolean(process.env.GIT_BOOTSTRAP, false);
+const GIT_POLL = parseBoolean(process.env.GIT_POLL, true);
+const GIT_POLL_DELAY_MS = 30_000;
 const HEALTHCHECK_PATH =
-  typeof healthPathRaw === "string" && healthPathRaw.trim()
-    ? healthPathRaw.trim()
+  typeof process.env.HEALTHCHECK_PATH === "string" && process.env.HEALTHCHECK_PATH.trim()
+    ? process.env.HEALTHCHECK_PATH.trim()
     : "/";
 
 function run(name, cmd, args, envOverrides = {}) {
@@ -60,13 +54,10 @@ function getNextCommand() {
   ];
 
   const found = candidates.find((candidate) => fs.existsSync(candidate));
-  if (found) {
-    return { cmd: found, args: [] };
-  }
+  if (found) return { cmd: found, args: [] };
 
-  // Fallback keeps the service bootable even when .bin symlinks are missing.
   console.warn(
-    `[supervisor] ${binName} not found at expected paths. Falling back to 'pnpm exec next'. Tried:\n${candidates.join("\n")}`
+    `[supervisor] ${binName} not found in node_modules/.bin; using 'pnpm exec next' fallback.`
   );
   return { cmd: "pnpm", args: ["exec", "next"] };
 }
@@ -86,20 +77,22 @@ function execAsync(cmd) {
 
 async function bootstrapGit() {
   if (!GIT_BOOTSTRAP) {
-    console.log("[supervisor] git bootstrap disabled (set GIT_BOOTSTRAP=true to enable)");
+    console.log("[supervisor] git bootstrap disabled (GIT_BOOTSTRAP=false)");
     return;
   }
 
-  if (fs.existsSync(".git")) return;
+  if (fs.existsSync(".git")) {
+    console.log("[supervisor] git bootstrap skipped (.git already exists)");
+    return;
+  }
 
   if (!REPO_URL) {
-    console.warn("[supervisor] no .git and no REPO_URL; skipping git bootstrap");
+    console.warn("[supervisor] git bootstrap skipped (REPO_URL not set)");
     return;
   }
 
-  console.log("[supervisor] bootstrapping git repo");
-  // Intentionally no "git clean -fd": it can delete node_modules in runtime
-  // containers and cause "next not found" failures on restart.
+  console.log(`[supervisor] bootstrapping git repo from ${REPO_URL} (${BRANCH})`);
+
   const cmds = [
     "git init",
     `git remote add origin ${REPO_URL}`,
@@ -110,6 +103,7 @@ async function bootstrapGit() {
   for (const cmd of cmds) {
     await execAsync(cmd);
   }
+
   console.log("[supervisor] git bootstrap complete");
 }
 
@@ -118,51 +112,66 @@ async function warmup() {
     ? HEALTHCHECK_PATH
     : `/${HEALTHCHECK_PATH}`;
   const url = `http://localhost:${PORT}${normalizedPath}`;
+
   for (let i = 0; i < 90; i++) {
     try {
       const res = await fetch(url);
       if (res.ok) {
-        console.log(`[supervisor] warmup complete (${((i + 1) * 500 / 1000).toFixed(1)}s)`);
+        console.log(
+          `[supervisor] warmup complete at ${url} (${(((i + 1) * 500) / 1000).toFixed(1)}s)`
+        );
         return;
       }
     } catch {
-      // Server not ready yet
+      // server not ready yet
     }
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  console.warn("[supervisor] warmup timed out after 45s");
+
+  console.warn(`[supervisor] warmup timed out after 45s (${url})`);
 }
 
-// --- Start Next.js immediately ---
-
-if (NEXT_DEV) {
+function startNext() {
   const nextCommand = getNextCommand();
-  console.log("[supervisor] starting Next.js dev server (turbo)");
-  run("next-dev", nextCommand.cmd, [...nextCommand.args, "dev", "--turbo", "-p", PORT], {
-    NODE_ENV: "development",
+  const baseArgs = [...nextCommand.args, "--hostname", HOST, "--port", PORT];
+
+  if (NEXT_DEV) {
+    console.log(`[supervisor] starting Next dev server on ${HOST}:${PORT}`);
+    run("next-dev", nextCommand.cmd, ["dev", ...baseArgs], {
+      NODE_ENV: "development",
+    });
+    return;
+  }
+
+  console.log(`[supervisor] starting Next production server on ${HOST}:${PORT}`);
+  run("next-start", nextCommand.cmd, ["start", ...baseArgs], {
+    NODE_ENV: "production",
   });
-} else {
-  const nextCommand = getNextCommand();
-  console.log("[supervisor] starting Next.js production server");
-  run("next-start", nextCommand.cmd, [...nextCommand.args, "start", "-p", PORT]);
 }
 
-// --- Async tasks: warmup, git bootstrap, deferred git-poll ---
+function startGitPoller() {
+  if (!GIT_POLL) {
+    console.log("[supervisor] git poller disabled (GIT_POLL=false)");
+    return;
+  }
 
-warmup().catch((err) => console.error("[supervisor] warmup error:", err));
+  setTimeout(() => {
+    console.log(
+      `[supervisor] starting git poller after ${GIT_POLL_DELAY_MS / 1000}s (interval=${process.env.GIT_POLL_INTERVAL || "2000"}ms)`
+    );
+    run("git-poll", "node", ["scripts/git-poll.js"]);
+  }, GIT_POLL_DELAY_MS);
+}
+
+startNext();
+
+warmup().catch((err) => {
+  console.warn(`[supervisor] warmup error (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+});
 
 bootstrapGit().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
-  console.warn(
-    `[supervisor] git bootstrap skipped; continuing without repo sync. Reason: ${message}`
-  );
+  console.warn(`[supervisor] git bootstrap failed (non-fatal): ${message}`);
 });
 
-if (GIT_POLL) {
-  setTimeout(() => {
-    console.log("[supervisor] starting git poller");
-    run("git-poll", "node", ["scripts/git-poll.js"]);
-  }, 30_000);
-} else {
-  console.log("[supervisor] git poller disabled (set GIT_POLL=true to enable)");
-}
+startGitPoller();

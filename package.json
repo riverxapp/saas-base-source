@@ -5,9 +5,11 @@
   "type": "module",
   "packageManager": "pnpm@10.26.2",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 0.0.0.0 --port ${PORT:-3000}",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 0.0.0.0 --port ${PORT:-3000}",
+    "typecheck": "tsc --noEmit",
+    "verify:dev-runtime": "node scripts/verify-dev-runtime.js",
     "lint": "next lint",
     "shadcn": "pnpm dlx shadcn@latest",
     "shadcn:init": "pnpm dlx shadcn@latest init -y",
@@ -35,6 +37,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.0"
   }
 }

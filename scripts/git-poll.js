@@ -5,6 +5,7 @@ import { join } from "node:path";
 const BRANCH = process.env.PREVIEW_BRANCH || "main";
 const INTERVAL = Number(process.env.GIT_POLL_INTERVAL || 2000);
 const REPO_URL = process.env.REPO_URL;
+
 let lastSha = null;
 let pulling = false;
 let authFailed = false;
@@ -13,61 +14,74 @@ let timer;
 function run(cmd) {
   return new Promise((resolve, reject) => {
     exec(cmd, { cwd: process.cwd() }, (err, stdout, stderr) => {
-      if (err) return reject(stderr || err.message);
+      if (err) {
+        return reject(new Error((stderr || err.message || "unknown error").trim()));
+      }
       resolve(stdout.trim());
     });
   });
 }
 
 async function poll() {
-  // Railway and other PaaS often ship source as a tarball without .git; bail if repo absent.
   if (!existsSync(join(process.cwd(), ".git"))) {
-    console.log("[git-poll] skipped: no .git directory present");
+    console.log("[git-poll] no .git directory present; stopping poller");
     clearInterval(timer);
     return;
   }
 
-  // If remote url stripped, restore from REPO_URL when provided.
-  if (REPO_URL) {
-    try {
-      await run(`git remote set-url origin ${REPO_URL}`);
-    } catch {
-      // ignore; fetch will surface errors
-    }
-  }
-
-  if (authFailed) return;
-  if (pulling) return;
+  if (authFailed || pulling) return;
 
   try {
     pulling = true;
+
+    if (REPO_URL) {
+      try {
+        await run(`git remote set-url origin ${REPO_URL}`);
+      } catch {
+        // fetch below will surface any actionable issues
+      }
+    }
 
     await run("git fetch origin");
     const sha = await run(`git rev-parse origin/${BRANCH}`);
 
     if (sha !== lastSha) {
-      console.log(`[git-poll] update detected → ${sha}`);
+      if (lastSha) {
+        console.log(`[git-poll] update detected for ${BRANCH}: ${lastSha} -> ${sha}`);
+      } else {
+        console.log(`[git-poll] initialized tracking SHA for ${BRANCH}: ${sha}`);
+      }
       await run(`git pull origin ${BRANCH}`);
-
       lastSha = sha;
     }
   } catch (err) {
-    const msg = String(err || "");
-    console.error("[git-poll] error:", msg);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[git-poll] error: ${message}`);
+
     if (
-      msg.includes("could not read Username") ||
-      msg.includes("Authentication failed") ||
-      msg.includes("Permission denied")
+      message.includes("could not read Username") ||
+      message.includes("Authentication failed") ||
+      message.includes("Permission denied")
     ) {
-      console.error(
-        "[git-poll] auth failed; disabling polling. Provide repo access in REPO_URL or credentials."
-      );
       authFailed = true;
+      console.error("[git-poll] authentication failed; disabling polling.");
     }
   } finally {
     pulling = false;
   }
 }
 
-console.log("[git-poll] started");
-timer = setInterval(poll, INTERVAL);
+if (!Number.isFinite(INTERVAL) || INTERVAL <= 0) {
+  console.error(`[git-poll] invalid GIT_POLL_INTERVAL=${process.env.GIT_POLL_INTERVAL}; expected positive milliseconds`);
+  process.exit(1);
+}
+
+console.log(`[git-poll] started (branch=${BRANCH}, interval=${INTERVAL}ms)`);
+poll().catch(() => {
+  // first poll errors are handled by poll()
+});
+timer = setInterval(() => {
+  poll().catch(() => {
+    // recurring errors are handled by poll()
+  });
+}, INTERVAL);
