@@ -89,7 +89,7 @@ Allowed configuration touchpoints:
 - `tailwind.config.ts`
 - `postcss.config.mjs`
 - `components.json`
-- Deployment/runtime files (`Dockerfile`, `railway.json`, `railpack.json`)
+- Deployment/runtime files (`Dockerfile`)
 
 Package script contract:
 
